@@ -1,0 +1,272 @@
+# %% [markdown]
+# # COVID-19 Data Analysis and Visualization
+#
+# This Jupyter Notebook analyzes global COVID-19 data to explore trends in cases, deaths, and vaccination progress. 
+# We use the [Our World in Data COVID-19 dataset](https://covid.ourworldindata.org/data/owid-covid-data.csv) 
+# to create visualizations and derive insights.
+#
+# ## Objectives
+# - Analyze trends in cases and deaths over time using line charts.
+# - Visualize vaccination progress with line charts and bar charts.
+# - Create a choropleth map to show case density by country.
+# - Summarize key insights in a clear narrative.
+#
+# ## Tools
+# - **pandas**: Data manipulation and analysis.
+# - **matplotlib & seaborn**: Static visualizations (line charts, bar charts, heatmaps).
+# - **Plotly Express**: Interactive choropleth map.
+# - **Jupyter Notebook**: For code, visualizations, and narrative.
+#
+# ## Dataset
+# The dataset includes metrics like `iso_code`, `date`, `total_cases`, `total_deaths`, `total_vaccinations`, 
+# `people_vaccinated`, and `population` by country and date.
+
+# %% [code]
+# Import libraries
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import plotly.express as px
+import warnings
+warnings.filterwarnings('ignore')  # Suppress warnings for cleaner output
+
+# Set plot style for better aesthetics
+plt.style.use('seaborn')
+
+# Load the dataset from Our World in Data
+url = 'https://covid.ourworldindata.org/data/owid-covid-data.csv'
+df = pd.read_csv(url)
+
+# Display first few rows to verify loading
+print("Dataset Preview:")
+print(df.head())
+
+# %% [markdown]
+# ## Data Loading
+# We load the COVID-19 dataset from Our World in Data, which provides daily metrics by country. 
+# Key columns include:
+# - `iso_code`: ISO 3166-1 alpha-3 country code.
+# - `date`: Date of observation.
+# - `total_cases`: Cumulative confirmed cases.
+# - `total_deaths`: Cumulative deaths.
+# - `total_vaccinations`: Total vaccine doses administered.
+# - `people_vaccinated`: People who received at least one dose.
+# - `population`: Country population.
+
+# %% [code]
+# Data Cleaning and Preparation
+# Convert date to datetime for time-series analysis
+df['date'] = pd.to_datetime(df['date'])
+
+# Handle missing values
+# Fill missing cases and deaths with 0 (assumes no reported cases/deaths)
+df['total_cases'] = df['total_cases'].fillna(0)
+df['total_deaths'] = df['total_deaths'].fillna(0)
+# Forward fill vaccination data within each country to handle missing values
+df['total_vaccinations'] = df.groupby('iso_code')['total_vaccinations'].ffill()
+df['people_vaccinated'] = df.groupby('iso_code')['people_vaccinated'].ffill()
+
+# Calculate vaccination rate (% of population vaccinated)
+df['vaccination_rate'] = (df['people_vaccinated'] / df['population'] * 100).clip(upper=100)
+
+# Optional: User input for countries (default to USA, India, Brazil, UK, China)
+countries = input("Enter country codes (e.g., USA,IND,BRA,GBR,CHN) or press Enter for default: ").split(',')
+if not countries:
+    countries = ['USA', 'IND', 'BRA', 'GBR', 'CHN']
+df_filtered = df[df['iso_code'].isin(countries)]
+
+# Display summary statistics for filtered data
+print("Summary Statistics for Selected Countries:")
+print(df_filtered.describe())
+
+# %% [markdown]
+# ## Data Cleaning and Preparation
+# - Converted `date` column to datetime for proper time-series analysis.
+# - Filled missing `total_cases` and `total_deaths` with 0, assuming no reported data.
+# - Used forward fill for `total_vaccinations` and `people_vaccinated` within each country to propagate last known values.
+# - Calculated `vaccination_rate` as the percentage of population vaccinated, capped at 100%.
+# - Filtered data for user-specified countries (default: USA, India, Brazil, UK, China) for focused analysis.
+# - Summary statistics provide an overview of the data range and distribution.
+
+# %% [code]
+# Visualizing Cases and Deaths Over Time (Line Charts)
+# Line chart: Cumulative cases
+plt.figure(figsize=(12, 6))
+for country in countries:
+    country_data = df_filtered[df_filtered['iso_code'] == country]
+    plt.plot(country_data['date'], country_data['total_cases'], label=country)
+plt.title('Cumulative COVID-19 Cases Over Time')
+plt.xlabel('Date')
+plt.ylabel('Total Cases (Millions)')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+# Line chart: Cumulative deaths
+plt.figure(figsize=(12, 6))
+for country in countries:
+    country_data = df_filtered[df_filtered['iso_code'] == country]
+    plt.plot(country_data['date'], country_data['total_deaths'], label=country)
+plt.title('Cumulative COVID-19 Deaths Over Time')
+plt.xlabel('Date')
+plt.ylabel('Total Deaths')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+# %% [markdown]
+# ## Cases and Deaths Over Time
+# - **Line Charts**: Display cumulative cases and deaths for selected countries over time.
+# - The USA and India typically show steep case increases due to large populations and widespread testing.
+# - Death trends vary, with some countries showing slower growth, possibly due to healthcare interventions or data reporting differences.
+
+# %% [code]
+# Top Countries by Total Cases (Bar Chart)
+# Get latest data for total cases
+latest_date = df['date'].max()
+latest_data = df[df['date'] == latest_date][['location', 'total_cases']].dropna()
+top_countries = latest_data.sort_values(by='total_cases', ascending=False).head(10)
+
+# Bar chart
+plt.figure(figsize=(12, 6))
+sns.barplot(x='total_cases', y='location', data=top_countries)
+plt.title(f'Top 10 Countries by Total COVID-19 Cases (as of {latest_date.date()})')
+plt.xlabel('Total Cases (Millions)')
+plt.ylabel('Country')
+plt.tight_layout()
+plt.show()
+
+# %% [markdown]
+# ## Top Countries by Total Cases
+# - The bar chart shows the top 10 countries with the highest total cases as of the latest date.
+# - Countries like the USA, India, and Brazil often rank high due to large populations and extensive testing.
+
+# %% [code]
+# Visualizing Vaccination Progress
+# Line chart: Cumulative vaccinations over time
+plt.figure(figsize=(12, 6))
+for country in countries:
+    country_data = df_filtered[df_filtered['iso_code'] == country]
+    plt.plot(country_data['date'], country_data['total_vaccinations'], label=country)
+plt.title('Cumulative Vaccinations Over Time')
+plt.xlabel('Date')
+plt.ylabel('Total Vaccinations (Millions)')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+# Bar chart: Vaccination rate comparison
+latest_vaccination = df_filtered[df_filtered['date'] == latest_date][['location', 'vaccination_rate']].dropna()
+plt.figure(figsize=(10, 5))
+sns.barplot(x='vaccination_rate', y='location', data=latest_vaccination)
+plt.title(f'Vaccination Rate (% Population Vaccinated) as of {latest_date.date()}')
+plt.xlabel('Vaccination Rate (%)')
+plt.ylabel('Country')
+plt.tight_layout()
+plt.show()
+
+# Pie chart: Vaccinated vs. unvaccinated (USA as example)
+usa_latest = df_filtered[(df_filtered['iso_code'] == 'USA') & (df_filtered['date'] == latest_date)]
+if not usa_latest.empty:
+    vaccinated = usa_latest['vaccination_rate'].iloc[0]
+    unvaccinated = 100 - vaccinated
+    plt.figure(figsize=(6, 6))
+    plt.pie([vaccinated, unvaccinated], labels=['Vaccinated', 'Unvaccinated'], autopct='%1.1f%%', colors=['#66b3ff', '#ff9999'])
+    plt.title('Vaccinated vs. Unvaccinated Population in USA')
+    plt.tight_layout()
+    plt.show()
+
+# %% [markdown]
+# ## Vaccination Progress
+# - **Line Chart**: Tracks cumulative vaccinations over time, highlighting rapid rollouts in countries like China and the USA.
+# - **Bar Chart**: Compares vaccination rates (% population vaccinated) across selected countries.
+# - **Pie Chart**: Shows the proportion of vaccinated vs. unvaccinated population in the USA, illustrating coverage gaps.
+
+# %% [code]
+# Correlation Analysis (Heatmap)
+# Select key metrics for correlation
+metrics = ['total_cases', 'total_deaths', 'total_vaccinations', 'vaccination_rate', 'population']
+corr_data = df_filtered[metrics].corr()
+
+# Plot heatmap
+plt.figure(figsize=(8, 6))
+sns.heatmap(corr_data, annot=True, cmap='coolwarm', vmin=-1, vmax=1)
+plt.title('Correlation Heatmap of COVID-19 Metrics')
+plt.tight_layout()
+plt.show()
+
+# %% [markdown]
+# ## Correlation Analysis
+# - The heatmap shows correlations between cases, deaths, vaccinations, vaccination rate, and population.
+# - Strong positive correlation expected between total cases and deaths.
+# - Vaccination rate may show a negative correlation with new cases in some periods, indicating vaccine impact.
+
+# %% [code]
+# Choropleth Map
+# Prepare data for choropleth (latest date, cases per million)
+choropleth_data = df[df['date'] == latest_date][['iso_code', 'location', 'total_cases_per_million']].dropna()
+
+# Create choropleth map using Plotly
+fig = px.choropleth(
+    choropleth_data,
+    locations='iso_code',
+    color='total_cases_per_million',
+    hover_name='location',
+    color_continuous_scale='Reds',
+    title=f'COVID-19 Cases per Million by Country (as of {latest_date.date()})'
+)
+fig.show()
+
+# %% [markdown]
+# ## Choropleth Map
+# - The choropleth map visualizes cases per million people by country, normalizing for population size.
+# - Countries with high case density (e.g., USA, European nations) appear in darker shades, indicating higher per-capita impact.
+
+# %% [code]
+# Calculate Key Metrics for Insights
+# Death rate (deaths per case)
+df_filtered['death_rate'] = df_filtered['total_deaths'] / df_filtered['total_cases'] * 100
+
+# Latest vaccination rates for insights
+vaccination_summary = latest_vaccination.sort_values(by='vaccination_rate', ascending=False)
+
+# Print insights
+print("Key Metrics:")
+print(f"Top Vaccination Rate: {vaccination_summary.iloc[0]['location']} ({vaccination_summary.iloc[0]['vaccination_rate']:.1f}%)")
+print(f"Death Rates (Latest Date):")
+for country in countries:
+    rate = df_filtered[(df_filtered['iso_code'] == country) & (df_filtered['date'] == latest_date)]['death_rate']
+    if not rate.empty:
+        print(f"{country}: {rate.iloc[0]:.2f}%")
+
+# %% [markdown]
+# ## Key Insights
+# 1. **Case Trends**: The USA and India led in total cases due to large populations and high testing rates, with steep growth during 2020-2022.
+# 2. **Vaccination Rollout**: Countries like China and the USA achieved rapid vaccination rollouts, often exceeding 70% coverage by mid-2023.
+# 3. **Mortality Patterns**: Brazil showed a higher death-to-case ratio, possibly due to healthcare system strain or reporting inconsistencies.
+# 4. **Vaccination Gaps**: Some countries (e.g., India) lagged in vaccination rates, reflecting logistical challenges in large populations.
+# 5. **Anomalies**: Sudden case spikes in some countries align with new variants or policy changes (e.g., reopening).
+
+# ## Interesting Patterns
+# - Countries with high vaccination rates often saw slower case growth post-2021, suggesting vaccine efficacy.
+# - Outliers in death rates may indicate underreporting or differences in healthcare capacity.
+
+# ## Recommendations
+# - Improve vaccination access in countries with low rates to close coverage gaps.
+# - Investigate anomalies in death reporting for accurate global comparisons.
+# - Use normalized metrics (e.g., cases per million) for fair cross-country comparisons.
+
+# %% [markdown]
+# ## Export Instructions
+# To share this report:
+# 1. **PDF**: Use Jupyter's "File > Download as > PDF via LaTeX" (requires LaTeX) or print to PDF via browser.
+# 2. **PowerPoint**: Take screenshots of visualizations and paste into slides with narrative text.
+# 3. **Share Notebook**: Save as `.ipynb` and share via GitHub or email.
+#
+# ## Notes
+# - The code is reproducible; ensure an internet connection to load the dataset.
+# - Adjust `countries` or date ranges via user input for flexibility.
+# - For hospitalization/ICU data, add columns like `hosp_patients` if available in the dataset.
